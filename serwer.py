@@ -31,7 +31,9 @@ def odbierz_pomiar():
 
     if not plant_id or value is None:
         return jsonify({"error": "Brakuje danych"}), 400
-    print(plant_id,value)
+    else:
+        print(plant_id,value)
+        return jsonify({"status": "ok", "plant_id": plant_id, "value": value})
     '''
     # --- Zapis do InfluxDB ---
     point = (
