@@ -1,0 +1,22 @@
+import requests
+import json
+import time
+import random
+
+# Adres IP twojego serwera (komputera z Flaskiem)
+SERVER_IP = "192.168.0.105"
+
+while True:
+    wilgotnosc = round(random.uniform(30, 60), 1)
+    payload = {
+        "plant_id": "3",
+        "value": wilgotnosc
+    }
+
+    try:
+        response = requests.post(f"http://{SERVER_IP}:5001/api/pomiar", json=payload)
+        print("✅ Wysłano:", payload, "| Odpowiedź:", response.json())
+    except Exception as e:
+        print("❌ Błąd:", e)
+
+    time.sleep(30)
