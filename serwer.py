@@ -42,20 +42,42 @@ def odbierz_pomiar():
     )
     influx_write_api.write(bucket=influx_bucket, org=influx_org, record=point)
     
-    return jsonify({"status": "ok", "plant_id": plant_id, "value": value})
 
-'''
-    # --- Zapis do MongoDB (ostatni pomiar) ---
-    plants.update_one(
-        {"_id": str(plant_id)},
-        {"$set": {
-            "ostatni_pomiar": value,
-            "timestamp": datetime.utcnow()
-        }},
-        upsert=True
-    )
 
-    return jsonify({"status": "ok", "plant_id": plant_id, "value": value})
-    '''
+    # dane o roślinie w mongo
+    plant = plants.find_one({"_id": str(plant_id)})
+
+    if not plant:
+        return jsonify({"error": "Nie znaleziono rośliny w bazie danych"}), 404
+
+    #  minimalne i maksymalne wartości wilgotności z mongo
+    nawodnienie = plant.get("optymalne_nawodnienie", {})
+    wilgotnosc_min = nawodnienie.get("min")
+    wilgotnosc_max = nawodnienie.get("max")
+
+    if wilgotnosc_min is None or wilgotnosc_max is None:
+        return jsonify({"error": "Brak danych o optymalnym nawodnieniu"}), 500
+
+    # Porównanie wilgotności
+    if value < wilgotnosc_min:
+        status = "za sucho"
+    elif value > wilgotnosc_max:
+        status = "za mokro"
+    else:
+        status = "wilgotnosc_ok"
+
+    print(status)
+
+    return jsonify({
+        "status": status,
+        "plant_id": plant_id,
+        "value": value,
+        "wilgotnosc_min": wilgotnosc_min,
+        "wilgotnosc_max": wilgotnosc_max,
+        "nazwa_rosliny": plant.get("nazwa"),
+        "lokalizacja": plant.get("lokalizacja"),
+        "notes": plant.get("notes")
+    })
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001)
