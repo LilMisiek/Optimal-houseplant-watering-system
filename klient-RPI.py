@@ -7,7 +7,7 @@ import random
 SERVER_IP = "127.0.0.1"
 
 while True:
-    wilgotnosc = round(random.uniform(30, 60), 1)
+    wilgotnosc = round(random.uniform(10, 90), 1)
     payload = {
         "plant_id": "3",
         "value": wilgotnosc
