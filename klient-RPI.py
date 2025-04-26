@@ -4,7 +4,7 @@ import time
 import random
 
 # Adres IP twojego serwera (komputera z Flaskiem)
-SERVER_IP = "192.168.0.105"
+SERVER_IP = "127.0.0.1"
 
 while True:
     wilgotnosc = round(random.uniform(30, 60), 1)
@@ -19,4 +19,4 @@ while True:
     except Exception as e:
         print("❌ Błąd:", e)
 
-    time.sleep(30)
+    time.sleep(3)
