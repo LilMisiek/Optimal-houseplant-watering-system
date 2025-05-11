@@ -39,4 +39,5 @@ while True:
     except Exception as e:
         print("❌ Błąd:", e)
 
+
     time.sleep(10)
