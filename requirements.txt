@@ -1,3 +1,4 @@
 Flask
 pymongo
 influxdb-client
+requests

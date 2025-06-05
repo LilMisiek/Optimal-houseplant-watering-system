@@ -1,26 +1,27 @@
 from flask import Flask, request, jsonify
-from influxdb_client import InfluxDBClient, Point, WritePrecision
+from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 from pymongo import MongoClient
-from datetime import datetime
+from config_loader import load_config
 
+# Wczytaj konfigurację
+config = load_config()
+
+# --- Flask ---
 app = Flask(__name__)
 
 # --- MongoDB ---
-mongo_client = MongoClient("mongodb://localhost:27017")
-mongo_db = mongo_client["roslinki_monitor"]
-plants = mongo_db["roslinki"]
+mongo_cfg = config.get("mongo", {})
+mongo_client = MongoClient(mongo_cfg.get("url", "mongodb://localhost:27017"))
+mongo_db = mongo_client[mongo_cfg.get("db", "roslinki_monitor")]
+plants = mongo_db[mongo_cfg.get("collection", "roslinki")]
 
 # --- InfluxDB ---
-influx_token = "1KxV0hegynMaC0nq9Zb6USPXM6VfcofJo6ZW4d5gL4ghQUS09FhNjCsTNjD2cYZVVfOLjfpE-pTT-bM4QpsICQ=="
-influx_org = "czworka"
-influx_bucket = "dane_wilgotnosci"
-influx_url = "http://localhost:8086"
-
+influx_cfg = config.get("influx", {})
 influx_client = InfluxDBClient(
-    url=influx_url,
-    token=influx_token,
-    org=influx_org
+    url=influx_cfg.get("url"),
+    token=influx_cfg.get("token"),
+    org=influx_cfg.get("org")
 )
 influx_write_api = influx_client.write_api(write_options=SYNCHRONOUS)
 
@@ -35,22 +36,27 @@ def odbierz_pomiar():
     print(f"Odebrano dane: plant_id={plant_id}, value={value}")
 
     # --- Zapis do InfluxDB ---
-    point = (
-        Point("wilgotnosc")
-        .tag("id_rosliny", str(plant_id))
-        .field("wartosc", float(value))
-    )
-    influx_write_api.write(bucket=influx_bucket, org=influx_org, record=point)
-    
+    try:
+        point = (
+            Point("wilgotnosc")
+            .tag("id_rosliny", str(plant_id))
+            .field("wartosc", float(value))
+        )
+        influx_write_api.write(
+            bucket=influx_cfg.get("bucket"),
+            org=influx_cfg.get("org"),
+            record=point
+        )
+    except Exception as e:
+        print(f"❌ Błąd zapisu do InfluxDB: {e}")
+        return jsonify({"error": "Błąd zapisu do InfluxDB"}), 500
 
-
-    # dane o roślinie w mongo
+    # --- Dane o roślinie z MongoDB ---
     plant = plants.find_one({"_id": str(plant_id)})
 
     if not plant:
         return jsonify({"error": "Nie znaleziono rośliny w bazie danych"}), 404
 
-    #  minimalne i maksymalne wartości wilgotności z mongo
     nawodnienie = plant.get("optymalne_nawodnienie", {})
     wilgotnosc_min = nawodnienie.get("min")
     wilgotnosc_max = nawodnienie.get("max")
