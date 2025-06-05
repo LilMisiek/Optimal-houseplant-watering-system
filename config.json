@@ -1,0 +1,13 @@
+{
+  "influx": {
+    "token": "1KxV0hegynMaC0nq9Zb6USPXM6VfcofJo6ZW4d5gL4ghQUS09FhNjCsTNjD2cYZVVfOLjfpE-pTT-bM4QpsICQ==",
+    "org": "czworka",
+    "bucket": "dane_wilgotnosci",
+    "url": "http://localhost:8086"
+  },
+  "mongo": {
+    "url": "mongodb://localhost:27017",
+    "db": "roslinki_monitor",
+    "collection": "roslinki"
+  }
+}
