@@ -1,0 +1,29 @@
+# Folder cache'u Pythona
+__pycache__/
+
+# Foldery środowisk wirtualnych
+venv/
+.venv/
+env/
+*env/
+
+# Foldery konfiguracyjne IDE
+.idea/
+.vscode/
+
+# Pliki generowane przez system operacyjny
+.DS_Store
+Thumbs.db
+
+# Skompilowane pliki Pythona (na wszelki wypadek)
+*.pyc
+*.pyo
+*.pyd
+
+# Pliki związane z zależnościami i buildem
+*.egg-info/
+dist/
+build/
+
+# Pliki logów
+*.log
