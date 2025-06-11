@@ -1,6 +1,7 @@
 
+
 import sys
-import uuid  # <-- KROK 1: Importujemy bibliotekę do generowania unikalnych ID
+import uuid
 from flask import Flask, request, jsonify, Response
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
@@ -9,11 +10,11 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 from influxdb_client.client.delete_api import DeleteApi
 from pymongo import MongoClient
 from bson.json_util import dumps
-# from bson.objectid import ObjectId  # <-- KROK 2: To nie jest już potrzebne!
+# from bson.objectid import ObjectId
 from config_loader import load_config
 from datetime import datetime, timezone
 
-# --- Konfiguracja i Inicjalizacja (bez zmian) ---
+# Konfiguracja i Inicjalizacja
 config = load_config()
 if not config or "influx" not in config or "mongo" not in config:
     print("❌ BŁĄD KRYTYCZNY: Konfiguracja jest pusta lub niekompletna.")
@@ -88,7 +89,7 @@ def update_plant(plant_id):
 @app.route('/api/rosliny/<plant_id>', methods=['DELETE'])
 def delete_plant(plant_id):
     try:
-        # <-- KROK 4: Usuwamy konwersję na ObjectId.
+
         mongo_result = plants.delete_one({"_id": plant_id})
         if mongo_result.deleted_count == 0:
             return jsonify({"error": "Nie znaleziono rośliny w MongoDB"}), 404
@@ -103,7 +104,7 @@ def delete_plant(plant_id):
         return jsonify({"error": "Wystąpił błąd serwera podczas usuwania"}), 500
 
 
-# Endpoint /api/rosliny (GET) zostaje bez zmian
+# Endpoint /api/rosliny
 @app.route('/api/rosliny', methods=['GET'])
 def get_all_plants():
     all_plants_cursor = plants.find({}, {"_id": 1, "nazwa": 1, "lokalizacja": 1})
@@ -158,11 +159,10 @@ def odbierz_pomiar():
         print(f"❌ Błąd zapisu do InfluxDB: {e}")
         return jsonify({"error": "Błąd zapisu do InfluxDB"}), 500
 
-    # <-- KROK 4: Usuwamy konwersję na ObjectId.
+
     plant = plants.find_one({"_id": plant_id})
     if not plant:
-        # Ten fallback może być przydatny, jeśli raspberry-dummy wciąż wysyła "1", "2"
-        # a nie masz takich ID w bazie. Ale generalnie można go usunąć.
+
         if plant_id in ["1", "2"]:
             return jsonify({"error": f"Dummy plant ID '{plant_id}' not found in DB. Add it first."}), 404
         return jsonify({"error": "Nie znaleziono rośliny"}), 404
