@@ -1,126 +1,132 @@
+
+
 <!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Monitoring Roślin</title>
-    <!-- Biblioteka do komunikacji na żywo -->
+    <title>Monitoring Roślin</title>
+    <!-- Biblioteki JS z CDN -->
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <!-- Główna biblioteka do wykresów -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Plugin do rysowania adnotacji (stref optymalnych) na wykresie -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
-    <!-- Adapter do poprawnej obsługi dat na osi czasu wykresu -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #1a1a1a;
-            color: #e0e0e0;
-            margin: 0;
-            padding: 20px;
-        }
-        h1 {
-            text-align: center;
-            color: #4CAF50;
-        }
-        #connection-status {
-            text-align: center;
-            padding: 10px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-            font-weight: bold;
-            transition: background-color 0.5s ease;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #1a1a1a; color: #e0e0e0; margin: 0; padding: 20px; }
+        h1 { text-align: center; color: #4CAF50; }
+        .main-controls { text-align: center; margin-bottom: 20px; }
+        .action-button { background-color: #4CAF50; color: white; border: none; padding: 12px 20px; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background-color 0.3s; }
+        .action-button:hover { background-color: #45a049; }
+        #connection-status { text-align: center; padding: 10px; margin-bottom: 20px; border-radius: 5px; font-weight: bold; transition: background-color 0.5s ease; }
         .status-connecting { background-color: #f0ad4e; color: #1a1a1a; }
         .status-connected { background-color: #4CAF50; color: white; }
         .status-disconnected { background-color: #d9534f; color: white; }
-
-        #plants-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            justify-content: center;
-        }
-        .plant-card {
-            background-color: #2c2c2c;
-            border: 1px solid #444;
-            border-radius: 10px;
-            padding: 20px;
-            width: 280px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            display: flex;
-            flex-direction: column;
-        }
-        .plant-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 16px rgba(0,0,0,0.4);
-        }
+        #plants-container { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+        .plant-card { background-color: #2c2c2c; border: 1px solid #444; border-radius: 10px; padding: 20px; width: 280px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); transition: transform 0.2s ease, box-shadow 0.2s ease; display: flex; flex-direction: column; }
+        .plant-card:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.4); }
         .plant-card h2 { margin-top: 0; color: #64B5F6; }
         .plant-card .info-wrapper { flex-grow: 1; }
+        .plant-card .card-controls { display: flex; gap: 10px; margin-top: 15px; }
+        .card-button { flex-grow: 1; background-color: #444; color: white; border: 1px solid #666; padding: 8px; border-radius: 5px; cursor: pointer; transition: background-color 0.3s; }
+        .card-button.history { background-color: #3e6f98; }
+        .card-button.edit { background-color: #f0ad4e; color: #1a1a1a; }
+        .card-button.delete { background-color: #d9534f; color: white; }
         .plant-card p { margin: 5px 0; }
         .plant-card .location { font-style: italic; color: #999; font-size: 0.9em; }
-        .plant-card .status { padding: 8px; border-radius: 5px; text-align: center; font-weight: bold; margin-top: 15px; transition: background-color 0.5s ease, color 0.5s ease; }
+        .plant-card .status { padding: 8px; border-radius: 5px; text-align: center; font-weight: bold; margin-top: 15px; color: white; transition: background-color 0.5s ease; }
         .plant-card .timestamp { font-size: 0.8em; color: #777; text-align: right; margin-top: 10px; display: block; }
-        .history-button { background-color: #64B5F6; color: #1a1a1a; border: none; padding: 10px; border-radius: 5px; font-weight: bold; cursor: pointer; margin-top: 15px; text-align: center; transition: background-color 0.3s; }
-        .history-button:hover { background-color: #90CAF9; }
-
-        .status-ok { background-color: #2E7D32; color: white; }
-        .status-dry { background-color: #C62828; color: white; }
-        .status-wet { background-color: #1565C0; color: white; }
-        .status-unknown { background-color: #555; color: white; }
-
-        .modal-backdrop {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0,0,0,0.7);
-            display: none; justify-content: center; align-items: center; z-index: 1000;
-        }
-        .modal-content {
-            background-color: #2c2c2c; padding: 25px; border-radius: 10px;
-            width: 90%; max-width: 800px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5); position: relative;
-        }
+        .status-ok { background-color: #2E7D32; } .status-dry { background-color: #C62828; } .status-wet { background-color: #1565C0; } .status-unknown { background-color: #555; }
+        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background-color: #2c2c2c; padding: 25px; border-radius: 10px; width: 90%; max-width: 800px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); position: relative; }
+        #plant-form-modal .modal-content { max-width: 500px; }
         .modal-close { position: absolute; top: 10px; right: 20px; font-size: 30px; font-weight: bold; color: #aaa; cursor: pointer; }
         .modal-close:hover { color: white; }
         .modal-title { margin-top: 0; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input, .form-group textarea { width: 100%; padding: 10px; background-color: #1a1a1a; border: 1px solid #444; color: white; border-radius: 5px; box-sizing: border-box; }
+        .form-group-inline { display: flex; gap: 15px; }
         .range-selector { margin-bottom: 15px; text-align: center; }
         .range-selector button { background-color: #444; color: white; border: 1px solid #666; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin: 0 5px; }
         .range-selector button:hover, .range-selector button.active { background-color: #64B5F6; color: #1a1a1a; }
     </style>
 </head>
 <body>
-
-    <h1>Monitoring roślin</h1>
+    <h1>Monitoring Roślin</h1>
+    <div class="main-controls">
+        <button id="add-plant-button" class="action-button">Dodaj nową roślinę</button>
+    </div>
     <div id="connection-status" class="status-connecting">Łączenie z serwerem...</div>
-
     <div id="plants-container"></div>
 
+    <!-- Modal z wykresem historii -->
     <div id="history-modal" class="modal-backdrop">
         <div class="modal-content">
-            <span class="modal-close" id="modal-close-button">×</span>
+            <span class="modal-close" id="history-modal-close-button">×</span>
             <h2 class="modal-title" id="modal-plant-name">Historia Wilgotności</h2>
             <div class="range-selector" id="range-selector-container"></div>
             <canvas id="history-chart"></canvas>
         </div>
     </div>
 
+    <!-- Modal z formularzem do dodawania/edycji rośliny -->
+    <div id="plant-form-modal" class="modal-backdrop">
+        <div class="modal-content">
+            <span class="modal-close" id="form-modal-close-button">×</span>
+            <h2 class="modal-title" id="form-title">Dane Rośliny</h2>
+            <form id="plant-form">
+                <input type="hidden" id="plant-id-input">
+                <div class="form-group">
+                    <label for="plant-name">Nazwa rośliny</label>
+                    <input type="text" id="plant-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="plant-location">Lokalizacja</label>
+                    <input type="text" id="plant-location" required>
+                </div>
+                <div class="form-group-inline">
+                    <div class="form-group">
+                        <label for="plant-humidity-min">Optymalna wilgotność MIN (%)</label>
+                        <input type="number" id="plant-humidity-min" min="0" max="100" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="plant-humidity-max">Optymalna wilgotność MAX (%)</label>
+                        <input type="number" id="plant-humidity-max" min="0" max="100" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="plant-notes">Notatki (opcjonalnie)</label>
+                    <textarea id="plant-notes" rows="3"></textarea>
+                </div>
+                <button type="submit" class="action-button">Zapisz</button>
+            </form>
+        </div>
+    </div>
+
     <script>
-        const API_URL = "http://127.0.0.1:5001";
+        const API_URL = "http://172.20.10.6:5001";
         const plantsContainer = document.getElementById('plants-container');
         const connectionStatusDiv = document.getElementById('connection-status');
+
         const historyModal = document.getElementById('history-modal');
         const modalPlantName = document.getElementById('modal-plant-name');
-        const modalCloseButton = document.getElementById('modal-close-button');
+        const historyModalCloseButton = document.getElementById('history-modal-close-button');
         const rangeSelectorContainer = document.getElementById('range-selector-container');
         const chartCanvas = document.getElementById('history-chart');
         let historyChart = null;
 
+        const addPlantButton = document.getElementById('add-plant-button');
+        const plantFormModal = document.getElementById('plant-form-modal');
+        const formModalCloseButton = document.getElementById('form-modal-close-button');
+        const plantForm = document.getElementById('plant-form');
+        const formTitle = document.getElementById('form-title');
+        const plantIdInput = document.getElementById('plant-id-input');
+
         function createPlantCard(plant) {
             const card = document.createElement('div');
+            // <-- POPRAWKA: ID jest teraz prostym stringiem, nie trzeba .$oid
             card.className = 'plant-card';
             card.id = `plant-card-${plant._id}`;
-
             card.innerHTML = `
                 <div class="info-wrapper">
                     <h2>${plant.nazwa}</h2>
@@ -129,8 +135,11 @@
                     <div class="status status-unknown" id="status-${plant._id}">Oczekiwanie na dane...</div>
                     <small class="timestamp" id="timestamp-${plant._id}"></small>
                 </div>
-                <button class="history-button" data-plant-id="${plant._id}" data-plant-name="${plant.nazwa}">Pokaż historię</button>
-            `;
+                <div class="card-controls">
+                    <button class="card-button history" data-plant-id="${plant._id}" data-plant-name="${plant.nazwa}">Historia</button>
+                    <button class="card-button edit" data-plant-id="${plant._id}">Edytuj</button>
+                    <button class="card-button delete" data-plant-id="${plant._id}" data-plant-name="${plant.nazwa}">Usuń</button>
+                </div>`;
             plantsContainer.appendChild(card);
         }
 
@@ -144,23 +153,21 @@
             timestampEl.textContent = `Aktualizacja: ${new Date(data.timestamp).toLocaleTimeString()}`;
             statusEl.textContent = data.status.replace(/_/g, ' ');
 
-            statusEl.className = 'status';
-            if (data.status === 'wilgotnosc_ok') statusEl.classList.add('status-ok');
-            else if (data.status === 'za sucho') statusEl.classList.add('status-dry');
+            statusEl.className = 'status status-ok';
+            if (data.status === 'za sucho') statusEl.classList.add('status-dry');
             else if (data.status === 'za mokro') statusEl.classList.add('status-wet');
+            else if (data.status === 'wilgotnosc_ok') statusEl.classList.add('status-ok');
             else statusEl.classList.add('status-unknown');
         }
 
         async function loadAndDrawChart(plantId, range = '24h') {
-            document.querySelectorAll('.range-selector button').forEach(btn => {
+            document.querySelectorAll('#range-selector-container button').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.range === range);
             });
 
             try {
                 let pointLimit = 50;
-                if (range.includes('m')) {
-                    pointLimit = 50;
-                }
+                if (range.includes('m')) pointLimit = 100;
 
                 const apiUrl = `${API_URL}/api/rosliny/${plantId}/pomiary?zakres=${range}&limit=${pointLimit}`;
                 console.log(`Pobieranie danych z: ${apiUrl}`);
@@ -176,8 +183,7 @@
                 if (data.length === 0) {
                     const ctx = chartCanvas.getContext('2d');
                     ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
-                    ctx.fillStyle = '#999';
-                    ctx.textAlign = 'center';
+                    ctx.fillStyle = '#999'; ctx.textAlign = 'center';
                     ctx.fillText('Brak danych historycznych dla wybranego zakresu.', chartCanvas.width / 2, chartCanvas.height / 2);
                     return;
                 }
@@ -194,54 +200,23 @@
                         datasets: [{
                             label: 'Wilgotność (%)',
                             data: data.map(p => ({ x: new Date(p.time), y: p.value })),
-                            borderColor: '#64B5F6',
-                            tension: 0.2,
-                            pointBackgroundColor: pointBackgroundColors,
-                            pointBorderColor: '#fff',
-                            pointRadius: 5,
-                            pointHoverRadius: 7,
+                            borderColor: '#64B5F6', tension: 0.2, pointBackgroundColor: pointBackgroundColors,
+                            pointBorderColor: '#fff', pointRadius: 5, pointHoverRadius: 7,
                         }]
                     },
                     options: {
-                        responsive: true,
-                        maintainAspectRatio: true,
+                        responsive: true, maintainAspectRatio: true,
                         scales: {
-                            y: {
-                                beginAtZero: true,
-                                max: 100,
-                                title: { display: true, text: 'Wilgotność [%]', color: '#ccc' },
-                                ticks: { color: '#ccc' },
-                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                            },
-                            x: {
-                                type: 'time',
-                                time: {
-                                    tooltipFormat: 'dd.MM.yyyy HH:mm'
-                                },
-                                title: { display: true, text: 'Czas', color: '#ccc' },
-                                ticks: { color: '#ccc' },
-                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                            }
+                            y: { beginAtZero: true, max: 100, title: { display: true, text: 'Wilgotność [%]', color: '#ccc' }, ticks: { color: '#ccc' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
+                            x: { type: 'time', time: { tooltipFormat: 'dd.MM.yyyy HH:mm' }, title: { display: true, text: 'Czas', color: '#ccc' }, ticks: { color: '#ccc' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }
                         },
                         plugins: {
                             legend: { labels: { color: '#ccc' } },
                             annotation: {
                                 annotations: {
-                                    tooDryZone: {
-                                        type: 'box', yMin: 0, yMax: opt.min,
-                                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                                        borderColor: 'rgba(255, 99, 132, 0.3)'
-                                    },
-                                    optimalZone: {
-                                        type: 'box', yMin: opt.min, yMax: opt.max,
-                                        backgroundColor: 'rgba(75, 192, 192, 0.15)',
-                                        borderColor: 'rgba(75, 192, 192, 0.3)'
-                                    },
-                                    tooWetZone: {
-                                        type: 'box', yMin: opt.max, yMax: 100,
-                                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                                        borderColor: 'rgba(54, 162, 235, 0.3)'
-                                    }
+                                    tooDryZone: { type: 'box', yMin: 0, yMax: opt.min, backgroundColor: 'rgba(255, 99, 132, 0.1)', borderColor: 'rgba(255, 99, 132, 0.3)' },
+                                    optimalZone: { type: 'box', yMin: opt.min, yMax: opt.max, backgroundColor: 'rgba(75, 192, 192, 0.15)', borderColor: 'rgba(75, 192, 192, 0.3)' },
+                                    tooWetZone: { type: 'box', yMin: opt.max, yMax: 100, backgroundColor: 'rgba(54, 162, 235, 0.1)', borderColor: 'rgba(54, 162, 235, 0.3)' }
                                 }
                             }
                         }
@@ -253,29 +228,68 @@
             }
         }
 
-        plantsContainer.addEventListener('click', (event) => {
-            if (event.target.classList.contains('history-button')) {
-                const plantId = event.target.dataset.plantId;
-                const plantName = event.target.dataset.plantName;
-                modalPlantName.textContent = `Historia wilgotności dla: ${plantName}`;
-                rangeSelectorContainer.innerHTML = '';
+        function openPlantForm(plantId = null) {
+            plantForm.reset();
+            plantIdInput.value = '';
 
-                ['5m', '15m', '1h', '12h', '24h'].forEach(range => {
-                    const btn = document.createElement('button');
-                    btn.textContent = range.replace('m', ' min').replace('h', ' godz.');
-                    btn.dataset.range = range;
-                    btn.onclick = () => loadAndDrawChart(plantId, range);
-                    rangeSelectorContainer.appendChild(btn);
+            if (plantId) {
+                formTitle.textContent = "Edytuj dane rośliny";
+                fetch(`${API_URL}/api/rosliny/${plantId}`)
+                    .then(res => res.json())
+                    .then(plant => {
+                        // <-- POPRAWKA: ID jest teraz prostym stringiem
+                        plantIdInput.value = plant._id;
+                        document.getElementById('plant-name').value = plant.nazwa;
+                        document.getElementById('plant-location').value = plant.lokalizacja;
+                        document.getElementById('plant-humidity-min').value = plant.optymalne_nawodnienie.min;
+                        document.getElementById('plant-humidity-max').value = plant.optymalne_nawodnienie.max;
+                        document.getElementById('plant-notes').value = plant.notes || '';
+                    });
+            } else {
+                formTitle.textContent = "Dodaj nową roślinę";
+            }
+            plantFormModal.style.display = 'flex';
+        }
+
+        plantForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const plantId = plantIdInput.value;
+            const payload = {
+                nazwa: document.getElementById('plant-name').value,
+                lokalizacja: document.getElementById('plant-location').value,
+                optymalne_nawodnienie: { min: document.getElementById('plant-humidity-min').value, max: document.getElementById('plant-humidity-max').value },
+                notes: document.getElementById('plant-notes').value
+            };
+
+            const method = plantId ? 'PUT' : 'POST';
+            const url = plantId ? `${API_URL}/api/rosliny/${plantId}` : `${API_URL}/api/rosliny`;
+
+            try {
+                const response = await fetch(url, {
+                    method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
                 });
-                historyModal.style.display = 'flex';
-                loadAndDrawChart(plantId);
+                if (!response.ok) throw new Error(`Błąd zapisu danych: ${response.statusText}`);
+                plantFormModal.style.display = 'none';
+                await refreshPlantList();
+            } catch (error) {
+                console.error("Błąd formularza:", error);
+                alert("Nie udało się zapisać zmian.");
             }
         });
 
-        modalCloseButton.onclick = () => { historyModal.style.display = 'none'; };
-        window.onclick = (event) => { if (event.target == historyModal) { historyModal.style.display = 'none'; } };
+        async function deletePlant(plantId, plantName) {
+            if (!confirm(`Czy na pewno chcesz usunąć roślinę "${plantName}" i całą jej historię pomiarów? Tej operacji nie można cofnąć.`)) return;
+            try {
+                const response = await fetch(`${API_URL}/api/rosliny/${plantId}`, { method: 'DELETE' });
+                if (!response.ok) throw new Error(`Błąd usuwania: ${response.statusText}`);
+                await refreshPlantList();
+            } catch (error) {
+                console.error("Błąd usuwania:", error);
+                alert("Nie udało się usunąć rośliny.");
+            }
+        }
 
-        async function main() {
+        async function refreshPlantList() {
             try {
                 const response = await fetch(`${API_URL}/api/rosliny`);
                 if (!response.ok) throw new Error('Nie udało się pobrać listy roślin.');
@@ -284,21 +298,48 @@
                 plants.forEach(plant => createPlantCard(plant));
             } catch (error) {
                 plantsContainer.innerHTML = `<p style="color: red;">${error.message}</p>`;
-                console.error("Błąd inicjalizacji:", error);
             }
+        }
 
+        addPlantButton.onclick = () => openPlantForm();
+        formModalCloseButton.onclick = () => plantFormModal.style.display = 'none';
+
+        plantsContainer.addEventListener('click', (event) => {
+            const target = event.target;
+            const plantId = target.dataset.plantId;
+            if (!plantId) return;
+
+            if (target.classList.contains('history')) {
+                rangeSelectorContainer.innerHTML = '';
+                ['5m', '15m', '1h', '12h', '24h'].forEach(range => {
+                    const btn = document.createElement('button');
+                    btn.textContent = range.replace('m', ' min').replace('h', ' godz.');
+                    btn.dataset.range = range;
+                    btn.onclick = () => loadAndDrawChart(plantId, range);
+                    rangeSelectorContainer.appendChild(btn);
+                });
+                loadAndDrawChart(plantId, '24h');
+                modalPlantName.textContent = `Historia wilgotności dla: ${target.dataset.plantName}`;
+                historyModal.style.display = 'flex';
+            } else if (target.classList.contains('edit')) {
+                openPlantForm(plantId);
+            } else if (target.classList.contains('delete')) {
+                deletePlant(plantId, target.dataset.plantName);
+            }
+        });
+
+        historyModalCloseButton.onclick = () => { historyModal.style.display = 'none'; };
+        window.onclick = (event) => {
+            if (event.target == historyModal) historyModal.style.display = 'none';
+            if (event.target == plantFormModal) plantFormModal.style.display = 'none';
+        };
+
+        async function main() {
+            await refreshPlantList();
             const socket = io(API_URL);
-            socket.on('connect', () => {
-                connectionStatusDiv.textContent = 'Połączono z serwerem';
-                connectionStatusDiv.className = 'status-connected';
-            });
-            socket.on('disconnect', () => {
-                connectionStatusDiv.textContent = 'Rozłączono! Próba ponownego połączenia...';
-                connectionStatusDiv.className = 'status-disconnected';
-            });
-            socket.on('nowy_pomiar', (data) => {
-                updatePlantCard(data);
-            });
+            socket.on('connect', () => { connectionStatusDiv.textContent = 'Połączono z serwerem'; connectionStatusDiv.className = 'status-connected'; });
+            socket.on('disconnect', () => { connectionStatusDiv.textContent = 'Rozłączono! Próba ponownego połączenia...'; connectionStatusDiv.className = 'status-disconnected'; });
+            socket.on('nowy_pomiar', (data) => updatePlantCard(data));
         }
         main();
     </script>
