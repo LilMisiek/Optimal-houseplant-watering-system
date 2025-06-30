@@ -1,1 +1,1 @@
-### App is on "serwer" branch
+### Optimal houseplant watering system
